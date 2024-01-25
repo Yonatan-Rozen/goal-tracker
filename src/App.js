@@ -36,7 +36,7 @@ export default function App() {
     setShowAddTaskForm((show) => !show);
   }
 
-  function handleDoneUpdate(updatedTask, isDone) {
+  function handleTaskDoneUpdate(updatedTask, isDone) {
     setTasks((tasks) =>
       tasks.map((task) =>
         task.description === updatedTask.description
@@ -46,7 +46,7 @@ export default function App() {
     );
   }
 
-  function handlePriorityUpdate(updatedTask, newPriority) {
+  function handleTaskPriorityUpdate(updatedTask, newPriority) {
     setTasks((tasks) =>
       tasks.map((task) =>
         task.description === updatedTask.description
@@ -58,27 +58,31 @@ export default function App() {
 
   function handleAddTask(newTask) {
     setTasks((tasks) => [...tasks, newTask]);
+    setShowAddTaskForm(false);
   }
 
   return (
-    <div className="app">
-      <h1>Goal Tracker</h1>
-      <div className={`table ${showAddTaskForm ? "form-open" : ""}`}>
-        <TaskTable
-          tasks={tasks}
-          handleDoneUpdate={handleDoneUpdate}
-          handlePriorityUpdate={handlePriorityUpdate}
-        />
-        {showAddTaskForm && <FormAddTask onAddTask={handleAddTask} />}
+    <>
+      <div className="app">
+        <h1>Goal Tracker</h1>
+        <div className={`table ${showAddTaskForm ? "form-open" : ""}`}>
+          <TaskTable
+            tasks={tasks}
+            handleTaskDoneUpdate={handleTaskDoneUpdate}
+            handleTaskPriorityUpdate={handleTaskPriorityUpdate}
+          />
+          {showAddTaskForm && <FormAddTask onAddTask={handleAddTask} />}
+        </div>
+        <Button onClick={handleShowAddTaskForm}>
+          {showAddTaskForm ? "Close" : "Add New Task"}
+        </Button>
       </div>
-      <Button onClick={handleShowAddTaskForm}>
-        {showAddTaskForm ? "Close" : "Add New Task"}
-      </Button>
-    </div>
+      <Footer />
+    </>
   );
 }
 
-function TaskTable({ tasks, handleDoneUpdate, handlePriorityUpdate }) {
+function TaskTable({ tasks, handleTaskDoneUpdate, handleTaskPriorityUpdate }) {
   return (
     <div className="task-table">
       <ul>
@@ -88,21 +92,30 @@ function TaskTable({ tasks, handleDoneUpdate, handlePriorityUpdate }) {
         <span className="title">Deadline</span>
         <span className="title">Priority</span>
         <span className="title">Days Left</span>
-        {tasks.map((task) => (
-          <Task
-            key={task.description}
-            task={task}
-            onDoneUpdate={handleDoneUpdate}
-            onPriorityUpdate={handlePriorityUpdate}
-          />
-        ))}
+        <TasksRows
+          tasks={tasks}
+          handleTaskDoneUpdate={handleTaskDoneUpdate}
+          handleTaskPriorityUpdate={handleTaskPriorityUpdate}
+        />
       </ul>
     </div>
   );
 }
 
+function TasksRows({ tasks, handleTaskDoneUpdate, handleTaskPriorityUpdate }) {
+  return tasks.map((task) => (
+    <Task
+      key={task.description}
+      task={task}
+      onDoneUpdate={handleTaskDoneUpdate}
+      onPriorityUpdate={handleTaskPriorityUpdate}
+    />
+  ));
+}
+
 function Task({ task, onDoneUpdate, onPriorityUpdate }) {
-  const daysLeft = calculateDaysLeft(task.deadline);
+  const { description, done, category, deadline, priority } = task;
+  const daysLeft = calculateDaysLeft(deadline);
 
   function calculateDaysLeft(deadline) {
     const today = new Date();
@@ -115,14 +128,14 @@ function Task({ task, onDoneUpdate, onPriorityUpdate }) {
     <>
       <input
         type="checkbox"
-        checked={task.done}
-        onChange={(e) => onDoneUpdate(task, !task.done)}
+        checked={done}
+        onChange={(e) => onDoneUpdate(task, !done)}
       />
-      <span>{task.description}</span>
-      <span>{task.category}</span>
-      <span>{task.deadline}</span>
+      <span>{description}</span>
+      <span>{category}</span>
+      <span>{deadline}</span>
       <select
-        value={task.priority}
+        value={priority}
         onChange={(e) => onPriorityUpdate(task, e.target.value)}
       >
         <option value={"Low"}>Low</option>
@@ -135,31 +148,34 @@ function Task({ task, onDoneUpdate, onPriorityUpdate }) {
 }
 
 function FormAddTask({ onAddTask }) {
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [priority, setPriority] = useState("Low");
+  const [formState, setFormState] = useState({
+    description: "",
+    category: "",
+    deadline: "",
+    priority: "Low",
+  });
 
-  function formatDate(date) {
-    const options = {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    };
-    const formattedDate = new Date(date).toLocaleDateString("en-US", options);
-    return formattedDate;
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setFormState((prevFormState) => ({
+      ...prevFormState,
+      [name]: value,
+    }));
   }
 
   function handleAddTask() {
-    if (!description || !category || !deadline) return;
+    if (!formState.description || !formState.category || !formState.deadline)
+      return;
 
     const newTask = {
+      ...formState,
       done: false,
-      description,
-      category,
-      deadline: formatDate(deadline),
-      priority,
+      deadline: new Date(formState.deadline).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
     };
 
     onAddTask(newTask);
@@ -168,25 +184,32 @@ function FormAddTask({ onAddTask }) {
   return (
     <div className="add-task-form">
       <ul>
-        <input type="checkbox" disabled />
+        <input type="checkbox" disabled name="done" />
         <input
           type="text"
           placeholder="description..."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={formState.description}
+          onChange={handleChange}
+          name="description"
         />
         <input
           type="text"
           placeholder="category..."
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          value={formState.category}
+          onChange={handleChange}
+          name="category"
         />
         <input
           type="date"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
+          value={formState.deadline}
+          onChange={handleChange}
+          name="deadline"
         />
-        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <select
+          value={formState.priority}
+          onChange={handleChange}
+          name="priority"
+        >
           <option value={"Low"}>Low</option>
           <option value={"Medium"}>Medium</option>
           <option value={"High"}>High</option>
